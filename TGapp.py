@@ -5,196 +5,120 @@ import matplotlib
 matplotlib.use("TkAgg")
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2TkAgg
 from matplotlib.figure import Figure
-import matplotlib.animation as animation
+#import matplotlib.animation as animation
 from matplotlib import style
 style.use('ggplot')
 from matplotlib.widgets import Slider
 
 import tkinter as tk
-from tkinter import *
-
-#import random  # for testing
 import _thread
 
-#ser = serial.Serial('/dev/cu.usbmodem1421', 9600, timeout=1)
+# import random to use testFunc()
+# import random
 
-ser = serial.Serial()
-ser.port = ""
+DEBUG_MODE = False
 
-ser.baudrate = 9600
-ser.timeout = 1
-ser.xonxoff = False     #disable software flow control
-ser.rtscts = False     #disable hardware (RTS/CTS) flow control
-ser.dsrdtr = False       #disable hardware (DSR/DTR) flow control
-ser.writeTimeout = 2
-#ser.bytesize = serial.EIGHTBITS #number of bits per bytes
-#ser.parity = serial.PARITY_NONE #set parity check: no parity
-#ser.stopbits = serial.STOPBITS_ONE  #number of stop bits
 
-f = Figure(figsize=(5,3), dpi=100)
-a = f.add_subplot(111)
+class TGinterface:
+    def __init__(self):
+        self._root = tk.Tk()
+        self._root.geometry("{0}x{1}".format(self._root.winfo_screenwidth(), self._root.winfo_screenheight()))
 
-aLog = []
-#aLog.append([])
-#aLog.append([])
-bLog = []
-#bLog.append([])
-#bLog.append([])
-tLog = []
+        self.aLog = []
+        self.bLog = []
+        self.tLog = []
+        self.run_animation = False
+        self.des_temp_a = "na"
+        self.des_temp_b = "na"
+        self.counter = 0
 
-run = False
-des_temp_a = "na"
-des_temp_b = "na"
+        self.top_var = tk.StringVar()
+        self.top_label = tk.Label(self._root, textvariable=self.top_var)
+        self.top_var.set("Press button to start")
+        self.top_label.pack(side="top")
 
-counter = 0
+        self.temp_a = tk.StringVar()
+        self.temp_b = tk.StringVar()
+        self.temp_a.set("Desired: na / Current Temp: na")
+        self.temp_b.set("Desired: na / Current Temp: na")
 
-def animate(i):
-    global counter
-    if run:
-        xList = []
-        yList = []
-        xListb = []
-        yListb = []
-        if counter < 25:
-            for item in aLog:
-                y = item
-                yList.append(y)
+        F1 = tk.Frame(self._root)
+        F2 = tk.Frame(self._root)
+        F3 = tk.Frame(self._root)
+        F4 = tk.Frame(self._root)
+        F1.pack(fill="x", expand=True)
+        F2.pack(fill="x", expand=True)
+        F3.pack(fill="x", expand=True)
+        F4.pack(fill="x", expand=True)
+        F1.place(relx=0.25, rely=0.4, anchor="center")
+        F2.place(relx=0.75, rely=0.4, anchor="center")
+        F3.place(relx=0.25, rely=0.3, anchor="center")
+        F4.place(relx=0.75, rely=0.3, anchor="center")
 
-            for item in bLog:
-                y = item
-                yListb.append(y)
-
-            for item in tLog:
-                x = item
-                xList.append(x)
-                xListb.append(x)
-        elif counter >= 25:
-            for i in range(counter - 25, counter):
-                y1 = aLog[i]
-                y2 = bLog[i]
-                yList.append(y1)
-                yListb.append(y2)
-                x = tLog[i]
-                xList.append(x)
-                xListb.append(x)
-        a.clear()
-        a.plot(xList, yList)
-        a.plot(xListb, yListb)
-        counter += 1
-
-def testData():
-    t = 0
-    while t <= 60:
-        a = t * 0.2
-        b = t * 0.1 + 5
-        #a = random.randint(0, 10)
-        #b = random.randint(0, 10)
-        aLog.append(a)
-        bLog.append(b)
-        tLog.append(t)
-        t += 0.5
-        time.sleep(0.5)
-
-def getSerial():
-    global aLog
-    global bLog
-    global tLog
-    global ser
-    global var
-    global des_temp_a
-    global des_temp_b
-
-    t = 0
-    while run and not ser.port == "":
-        x = ser.readline().decode('UTF-8')
-        a = x[2:4]
-        b = x[10:12]
-        aLog.append(float(a))
-        bLog.append(float(b))
-        tLog.append(float(t))
-        temp_a.set("Desired: " + des_temp_a + " / Current Temp: " + a)
-        temp_b.set("Desired: " + des_temp_b + " / Current Temp: " + b)
-        app.update()
-        t += 0.5
-        time.sleep(0.5)
-
-def saveResults():
-    file = open("resultsData.txt","w")
-    file.write("Time, A, B" + '\n')
-    if counter > 0:
-        for i in range(0, counter):
-            file.write(str(tLog[i]) + ", " + str(aLog[i]) + ", " + str(bLog[i]) + '\n')
-
-class Application(tk.Tk):
-    def __init__(self, *args, **kwargs):
-        tk.Tk.__init__(self, *args, **kwargs)
-        global var
-        global temp_a
-        global temp_b
-
-        var = StringVar()
-        self.label = Label(self, textvariable=var)
-        var.set("Press button to start")
-        temp_a = StringVar()
-        temp_b = StringVar()
-        temp_a.set("Desired: na / Current Temp: na")
-        temp_b.set("Desired: na / Current Temp: na")
-        self.F1 = Frame(self)
-        self.F2 = Frame(self)
-        self.F3 = Frame(self)
-        self.F4 = Frame(self)
-        self.F1.pack(fill="x", expand=True)
-        self.F2.pack(fill="x", expand=True)
-        self.F1.place(relx=0.25, rely=0.4, anchor="center")
-        self.F2.place(relx=0.75, rely=0.4, anchor="center")
-        self.F3.place(relx=0.25, rely=0.3, anchor="center")
-        self.F4.place(relx=0.75, rely=0.3, anchor="center")
-        self.L1 = Label(self.F1, text="Temperature A ")
-        self.E1 = Entry(self.F1, width=3)
+        self.L1 = tk.Label(F1, text="Temperature A ")
+        self.E1 = tk.Entry(F1, width=3)
         self.L1.pack(side="left")
         self.E1.pack(side="left")
-        self.Display1 = Label(self.F3, textvariable=temp_a)
+        self.Display1 = tk.Label(F3, textvariable=self.temp_a)
         self.Display1.pack(side="top")
-        self.L2 = Label(self.F2, text="Temperature B ")
-        self.E2 = Entry(self.F2, width=3)
+
+        self.L2 = tk.Label(F2, text="Temperature B ")
+        self.E2 = tk.Entry(F2, width=3)
         self.L2.pack(side="left")
         self.E2.pack(side="left")
-        self.Display2 = Label(self.F4, textvariable=temp_b)
+        self.Display2 = tk.Label(F4, textvariable=self.temp_b)
         self.Display2.pack(side="top")
-        self.button = tk.Button(self, text="Start", command=self.connect)
-        self.button3 = tk.Button(self, text="Save Data", command=saveResults)
-        self.button2 = tk.Button(self, text="QUIT", command=self.end_program)
-        self.bind_all('<Key>', self.key)
+
+        self.button = tk.Button(self._root, text="Start", command=self.connect)
+        self.button3 = tk.Button(self._root, text="Save Data", command=self.saveResults)
+        self.button2 = tk.Button(self._root, text="QUIT", command=self.endProgram)
+        self._root.bind_all('<Key>', self.key)
         self.button.pack(side="top", pady=5, ipady=2, ipadx=5)
-        self.label.pack(side="top")
         self.button2.pack(side="bottom", pady=5, ipady=2, ipadx=5)
         self.button3.pack(side="bottom", ipady=2, ipadx=5)
 
+        self.ser = serial.Serial()
+        self.ser.port = ""
+        self.ser.baudrate = 9600
+        self.ser.timeout = 1
+        self.ser.xonxoff = False     #disable software flow control
+        self.ser.rtscts = False     #disable hardware (RTS/CTS) flow control
+        self.ser.dsrdtr = False       #disable hardware (DSR/DTR) flow control
+        self.ser.writeTimeout = 2
 
-        canvas = FigureCanvasTkAgg(f, self)
-        canvas.show()
+        self._fig = Figure(figsize=(5,3), dpi=100)
+        self.a = self._fig.add_subplot(111)
 
-        #toolbar = NavigationToolbar2TkAgg(canvas, self)
-        #toolbar.update()
-        #slider = Slider(canvas, 'Frame', 0, 10, valinit=0,valfmt='%d')
-
-        canvas._tkcanvas.pack(side="bottom", fill=tk.X, expand=False)
-        #slider.pack(side="bottom", fill=tk.X, expand=False)
-        #canvas.get_tk_widget().pack(side="bottom", fill=tk.X, expand=False)
+        self.canvas = FigureCanvasTkAgg(self._fig, self._root)
+        self.canvas.show()
+        self.canvas._tkcanvas.pack(side="bottom", fill=tk.X, expand=False)
 
     def testFunc(self):
-        global run
-        _thread.start_new_thread(testData, ())
-        run = True
+        # DONT use without importing random
+        self.run_animation = True
+        _thread.start_new_thread(self.testData, ())
 
+    def testData(self):
+        t = 0
+        while t < 20:
+            #x = self.ser.readline().decode('UTF-8')
+            a = str(random.randint(10, 30))
+            b = str(random.randint(10, 30))
+            self.aLog.append(float(a))
+            self.bLog.append(float(b))
+            self.tLog.append(float(t))
+            self.temp_a.set("Desired: " + self.des_temp_a + " / Current Temp: " + a)
+            self.temp_b.set("Desired: " + self.des_temp_b + " / Current Temp: " + b)
+            self.plotPoints()
+            t += 0.5
+            time.sleep(0.5)
 
     def submit(self):
     	self.send_output()
 
     def key(self, event):
-        global ser
         if event.keysym == 'Return':
-        	if ser.isOpen():
+        	if self.ser.isOpen():
         		self.send_output()
         	else:
         		print("Start Serial Connection")
@@ -203,25 +127,20 @@ class Application(tk.Tk):
             self.quit()
 
     def connect(self):
-        global ser
-        global run
-        global des_temp_a
-        global des_temp_b
-
         ports = list(serial.tools.list_ports.comports())
         for p in ports:
         	if "Arduino" in p[1]:
-        		ser.port = p[0]
-        		ser.open()
+        		self.ser.port = p[0]
+        		self.ser.open()
         		break
 
-        if ser.port == "":
-        	var.set("No serial connections detected")
+        if self.ser.port == "":
+        	self.top_var.set("No serial connections detected")
         else:
-            run = True
-            var.set("Running")
+            self.run_animation = True
+            self.top_var.set("Running")
             time.sleep(1)
-            _thread.start_new_thread(getSerial, ())
+            _thread.start_new_thread(self.getSerial, ())
 
     def four_dig(self, input):
         # convert temp into Arduino  command.
@@ -242,45 +161,96 @@ class Application(tk.Tk):
             return -1
 
     def send_output(self):
-        global des_temp_a
-        global des_temp_b
         a = self.E1.get()
         b = self.E2.get()
         try:
-    	    a = int(a)
-    	    des_temp_a = str(a)
-    	    a = self.four_dig(a)
+            a = int(a)
+            self.des_temp_a = str(a)
+            a = self.four_dig(a)
 
-    	    b = int(b)
-    	    des_temp_b = str(b)
-    	    b = self.four_dig(b)
+            b = int(b)
+            self.des_temp_b = str(b)
+            b = self.four_dig(b)
 
-    	    out = a + b
-    	    out = out.encode('utf-8')
-    	    ser.write(out)
+            out = a + b
+            out = out.encode('utf-8')
+            if DEBUG_MODE:
+                print("Sending output: ", out)
+            self.ser.write(out)
 
         except ValueError:
             print("Bad input")
 
+    def getSerial(self):
+        t = 0
+        while self.ser.port != "":
+            #x = self.ser.readline().decode('UTF-8')
+            if DEBUG_MODE:
+                print("Recieved: ", x)
+            a = x[2:4]
+            b = x[10:12]
+            self.aLog.append(float(a))
+            self.bLog.append(float(b))
+            self.tLog.append(float(t))
+            self.temp_a.set("Desired: " + self.des_temp_a + " / Current Temp: " + a)
+            self.temp_b.set("Desired: " + self.des_temp_b + " / Current Temp: " + b)
+            self.plotPoints()
+            t += 0.5
+            time.sleep(0.5)
 
-    def end_program(self):
-        global run
-        global ser
+    def plotPoints(self):
+        #global counter
+        if self.run_animation:
+            xList = []
+            yList = []
+            xListb = []
+            yListb = []
 
-        run = False
-        if ser.isOpen():
-            ser.close()
-        self.quit()
+            if self.counter < 25:
+                for a in self.aLog:
+                    yList.append(a)
+                for b in self.bLog:
+                    yListb.append(b)
+                for t in self.tLog:
+                    xList.append(t)
+                    xListb.append(t)
 
+            elif self.counter >= 25:
+                for i in range(self.counter - 25, self.counter):
+                    y1 = self.aLog[i]
+                    y2 = self.bLog[i]
+                    yList.append(y1)
+                    yListb.append(y2)
+                    x = self.tLog[i]
+                    xList.append(x)
+                    xListb.append(x)
 
-app = Application()
-app.geometry("{0}x{1}+0+0".format(app.winfo_screenwidth(), app.winfo_screenheight()))
-ani = animation.FuncAnimation(f, animate, interval=500)
-app.mainloop()
+            self.a.clear()
+            self.a.plot(xList, yList)
+            self.a.plot(xListb, yListb)
+            self.counter += 1
+            self._fig.canvas.draw()
 
-#if __name__ == "__main__":
-#root = tk.Tk()
-#root.geometry("{0}x{1}+0+0".format(root.winfo_screenwidth(), root.winfo_screenheight()))
-#view = Application(root)
-#view.pack(side="top", fill="both", expand=True)
-#root.mainloop()
+    def saveResults(self):
+        file = open("resultsData.txt","w")
+        file.write("Time, A, B" + '\n')
+        if self.counter > 0:
+            for i in range(0, self.counter):
+                file.write(str(self.tLog[i]) + ", " + str(self.aLog[i]) + ", " + str(self.bLog[i]) + '\n')
+
+    def run(self):
+        self._root.mainloop()
+
+    def endProgram(self):
+        self.run_animation = False
+        if self.ser.isOpen():
+            self.ser.close()
+        self.ser.port = ""
+        self._root.destroy()
+
+if __name__ == "__main__":
+    app = TGinterface()
+    app.run()
+    #app.geometry("{0}x{1}+0+0".format(app.winfo_screenwidth(), app.winfo_screenheight()))
+    #ani = animation.FuncAnimation(f, TGinterface.animate, interval=500)
+    #app.run()
