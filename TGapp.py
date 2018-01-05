@@ -9,12 +9,11 @@ from matplotlib.figure import Figure
 from matplotlib import style
 style.use('ggplot')
 from matplotlib.widgets import Slider
-
 import tkinter as tk
 import _thread
 
 # import random to use testFunc()
-# import random
+import random
 
 DEBUG_MODE = False
 
@@ -127,12 +126,16 @@ class TGinterface:
             self.quit()
 
     def connect(self):
-        ports = list(serial.tools.list_ports.comports())
-        for p in ports:
-        	if "Arduino" in p[1]:
-        		self.ser.port = p[0]
-        		self.ser.open()
-        		break
+        for pinfo in serial.tools.list_ports.comports():
+            if pinfo.serial_number == '756333132333516171D1':
+                self.ser = serial.Serial(pinfo.device)
+                if self.ser.isOpen():
+                    self.run_animation = True
+                    self.top_var.set("Running")
+                    time.sleep(1)
+                    _thread.start_new_thread(self.getSerial, ())
+            else:
+                print("could not find Arduino by serial_number")
 
         if self.ser.port == "":
         	self.top_var.set("No serial connections detected")
@@ -184,11 +187,12 @@ class TGinterface:
     def getSerial(self):
         t = 0
         while self.ser.port != "":
-            #x = self.ser.readline().decode('UTF-8')
+            x = self.ser.readline().decode('UTF-8')
             if DEBUG_MODE:
                 print("Recieved: ", x)
-            a = x[2:4]
-            b = x[10:12]
+            read_val = self.ser.readline().decode('utf-8')
+            a = str(read_val[2:4:])
+            b = str(read_val[10:12:])
             self.aLog.append(float(a))
             self.bLog.append(float(b))
             self.tLog.append(float(t))
@@ -197,6 +201,15 @@ class TGinterface:
             self.plotPoints()
             t += 0.5
             time.sleep(0.5)
+
+    def calibrate(self):
+        #set both temp to 19, wait, set to 25, wait, set to 22
+        self.E1, self.E2 = 19, 19
+        self.send_output()
+        time.sleep(5)
+        self.E1, self.E2 = 26, 26
+        time.sleep(5)
+        #afterwards set the current temp to the desired temp so that the graph is accurate
 
     def plotPoints(self):
         #global counter
