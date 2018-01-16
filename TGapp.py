@@ -213,7 +213,7 @@ class TGinterface:
             return
 
         def delay_change():
-            #create a for loop instead
+            #create a for loop instead of this
             change_temp(22)
             time.sleep(9)
             sync_temp(int(self.ser.readline().decode()[2:4:]), int(self.ser.readline().decode()[10:12:]), 22)
