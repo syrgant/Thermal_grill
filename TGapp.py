@@ -1,5 +1,6 @@
 import serial
 import time
+import datetime
 import serial.tools.list_ports
 import matplotlib
 matplotlib.use("TkAgg")
@@ -15,7 +16,7 @@ import _thread
 # import random to use testFunc()
 import random
 
-DEBUG_MODE = False
+DEBUG_MODE = True
 
 
 class TGinterface:
@@ -30,6 +31,8 @@ class TGinterface:
         self.des_temp_a = "na"
         self.des_temp_b = "na"
         self.counter = 0
+        self.diff_temp_a = 0
+        self.diff_temp_b = 0
 
         self.top_var = tk.StringVar()
         self.top_label = tk.Label(self._root, textvariable=self.top_var)
@@ -69,10 +72,12 @@ class TGinterface:
         self.Display2.pack(side="top")
 
         self.button = tk.Button(self._root, text="Start", command=self.connect)
+        self.button1 = tk.Button(self._root, text="Calibrate", command=self.calibrate)
         self.button3 = tk.Button(self._root, text="Save Data", command=self.saveResults)
         self.button2 = tk.Button(self._root, text="QUIT", command=self.endProgram)
         self._root.bind_all('<Key>', self.key)
         self.button.pack(side="top", pady=5, ipady=2, ipadx=5)
+        self.button1.pack(side="top", pady=5, ipady=2, ipadx=5)
         self.button2.pack(side="bottom", pady=5, ipady=2, ipadx=5)
         self.button3.pack(side="bottom", ipady=2, ipadx=5)
 
@@ -132,17 +137,13 @@ class TGinterface:
                 if self.ser.isOpen():
                     self.run_animation = True
                     self.top_var.set("Running")
-                    time.sleep(1)
                     _thread.start_new_thread(self.getSerial, ())
-            else:
-                print("could not find Arduino by serial_number")
 
         if self.ser.port == "":
         	self.top_var.set("No serial connections detected")
         else:
             self.run_animation = True
             self.top_var.set("Running")
-            time.sleep(1)
             _thread.start_new_thread(self.getSerial, ())
 
     def four_dig(self, input):
@@ -187,14 +188,13 @@ class TGinterface:
     def getSerial(self):
         t = 0
         while self.ser.port != "":
-            x = self.ser.readline().decode('UTF-8')
+            read_val = self.ser.readline().decode()
             if DEBUG_MODE:
-                print("Recieved: ", x)
-            read_val = self.ser.readline().decode('utf-8')
+                print("Recieved: {} at {}".format(read_val, time.strftime('%a %H:%M:%S')))
             a = str(read_val[2:4:])
             b = str(read_val[10:12:])
             self.aLog.append(float(a))
-            self.bLog.append(float(b))
+            self.bLog.append(float(b)+float(3))
             self.tLog.append(float(t))
             self.temp_a.set("Desired: " + self.des_temp_a + " / Current Temp: " + a)
             self.temp_b.set("Desired: " + self.des_temp_b + " / Current Temp: " + b)
@@ -203,13 +203,42 @@ class TGinterface:
             time.sleep(0.5)
 
     def calibrate(self):
-        #set both temp to 19, wait, set to 25, wait, set to 22
-        self.E1, self.E2 = 19, 19
-        self.send_output()
-        time.sleep(5)
-        self.E1, self.E2 = 26, 26
-        time.sleep(5)
+        #set both temp to 19, wait, set to 26, wait, set to 22
+        def change_temp(temp):
+            self.E1.delete(0, 'end')
+            self.E1.insert(0, str(temp))
+            self.E2.delete(0, 'end')
+            self.E2.insert(0, str(temp))
+            self.send_output()
+            return
+
+        def delay_change():
+            #create a for loop instead
+            change_temp(22)
+            time.sleep(9)
+            sync_temp(int(self.ser.readline().decode()[2:4:]), int(self.ser.readline().decode()[10:12:]), 22)
+            change_temp(24)
+            time.sleep(9)
+            sync_temp(int(self.ser.readline().decode()[2:4:]), int(self.ser.readline().decode()[10:12:]), 24)
+            change_temp(26)
+            time.sleep(9)
+            sync_temp(int(self.ser.readline().decode()[2:4:]), int(self.ser.readline().decode()[10:12:]), 26)
+            change_temp(22)
+            print(self.diff_temp_a, self.diff_temp_b)
+            return
+        _thread.start_new_thread(delay_change, ())
+        return
+
         #afterwards set the current temp to the desired temp so that the graph is accurate
+        def sync_temp(a, b, real):
+            if self.diff_temp_a == None:
+                self.diff_temp_a = real - a
+                self.diff_temp_b = real - b
+            else:
+                self.diff_temp_a = (self.diff_temp_a + (real - a))/2
+                self.diff_temp_b = (self.diff_temp_b + (real - b))/2
+            return
+
 
     def plotPoints(self):
         #global counter
