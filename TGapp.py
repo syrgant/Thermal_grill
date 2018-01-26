@@ -16,7 +16,7 @@ import _thread
 # import random to use testFunc()
 import random
 
-DEBUG_MODE = True
+DEBUG_MODE = False
 
 
 class TGinterface:
@@ -27,12 +27,15 @@ class TGinterface:
         self.aLog = []
         self.bLog = []
         self.tLog = []
+        self.scaleLog = []
         self.run_animation = False
         self.des_temp_a = "na"
         self.des_temp_b = "na"
         self.counter = 0
         self.diff_temp_a = 0
         self.diff_temp_b = 0
+        self.calibrated = False
+        self.changing_temp = False
 
         self.top_var = tk.StringVar()
         self.top_label = tk.Label(self._root, textvariable=self.top_var)
@@ -73,11 +76,13 @@ class TGinterface:
 
         self.button = tk.Button(self._root, text="Start", command=self.connect)
         self.button1 = tk.Button(self._root, text="Calibrate", command=self.calibrate)
+        self.slider = tk.Scale(self._root, from_=0, to=10, length=200, tickinterval=1, orient="horizontal")
         self.button3 = tk.Button(self._root, text="Save Data", command=self.saveResults)
         self.button2 = tk.Button(self._root, text="QUIT", command=self.endProgram)
         self._root.bind_all('<Key>', self.key)
         self.button.pack(side="top", pady=5, ipady=2, ipadx=5)
         self.button1.pack(side="top", pady=5, ipady=2, ipadx=5)
+        self.slider.pack(side="top", pady=5, ipady=2, ipadx=5)
         self.button2.pack(side="bottom", pady=5, ipady=2, ipadx=5)
         self.button3.pack(side="bottom", ipady=2, ipadx=5)
 
@@ -111,6 +116,7 @@ class TGinterface:
             self.aLog.append(float(a))
             self.bLog.append(float(b))
             self.tLog.append(float(t))
+            self.scaleLog.append(str(slider.get()))
             self.temp_a.set("Desired: " + self.des_temp_a + " / Current Temp: " + a)
             self.temp_b.set("Desired: " + self.des_temp_b + " / Current Temp: " + b)
             self.plotPoints()
@@ -136,7 +142,7 @@ class TGinterface:
                 self.ser = serial.Serial(pinfo.device)
                 if self.ser.isOpen():
                     self.run_animation = True
-                    self.top_var.set("Running")
+                    #self.top_var.set("Running")
                     _thread.start_new_thread(self.getSerial, ())
 
         if self.ser.port == "":
@@ -145,6 +151,9 @@ class TGinterface:
             self.run_animation = True
             self.top_var.set("Running")
             _thread.start_new_thread(self.getSerial, ())
+        self.top_var.set("Calibrating")
+        self.calibrate()
+        self.top_var.set("Running")
 
     def four_dig(self, input):
         # convert temp into Arduino  command.
@@ -180,8 +189,13 @@ class TGinterface:
             out = out.encode('utf-8')
             if DEBUG_MODE:
                 print("Sending output: ", out)
+            #record "live" temp for the time it is changing
+            def changing():
+                self.changing_temp = True
+                time.sleep(4)
+                self.changing_temp = False
+            _thread.start_new_thread(changing, ())
             self.ser.write(out)
-
         except ValueError:
             print("Bad input")
 
@@ -191,10 +205,15 @@ class TGinterface:
             read_val = self.ser.readline().decode()
             if DEBUG_MODE:
                 print("Recieved: {} at {}".format(read_val, time.strftime('%a %H:%M:%S')))
-            a = str(read_val[2:4:])
-            b = str(read_val[10:12:])
-            self.aLog.append(float(a))
-            self.bLog.append(float(b)+float(3))
+            print(self.calibrated, self.changing_temp)
+            if (self.calibrated and not self.changing_temp):
+                a = self.des_temp_a
+                b = self.des_temp_b
+            else:
+                a = str(read_val[2:4:])
+                b = str(read_val[10:12:])
+            self.aLog.append(float(a)+float(self.diff_temp_a))
+            self.bLog.append(float(b)+float(self.diff_temp_b))
             self.tLog.append(float(t))
             self.temp_a.set("Desired: " + self.des_temp_a + " / Current Temp: " + a)
             self.temp_b.set("Desired: " + self.des_temp_b + " / Current Temp: " + b)
@@ -204,6 +223,7 @@ class TGinterface:
 
     def calibrate(self):
         #set both temp to 19, wait, set to 26, wait, set to 22
+        self.calibrated = True
         def change_temp(temp):
             self.E1.delete(0, 'end')
             self.E1.insert(0, str(temp))
@@ -214,30 +234,18 @@ class TGinterface:
 
         def delay_change():
             #create a for loop instead of this
+            change_temp(20)
+            time.sleep(3)
+            #print("changing temp and slider read is " + str(self.slider.get()))
             change_temp(22)
-            time.sleep(9)
-            sync_temp(int(self.ser.readline().decode()[2:4:]), int(self.ser.readline().decode()[10:12:]), 22)
-            change_temp(24)
-            time.sleep(9)
-            sync_temp(int(self.ser.readline().decode()[2:4:]), int(self.ser.readline().decode()[10:12:]), 24)
-            change_temp(26)
-            time.sleep(9)
-            sync_temp(int(self.ser.readline().decode()[2:4:]), int(self.ser.readline().decode()[10:12:]), 26)
-            change_temp(22)
-            print(self.diff_temp_a, self.diff_temp_b)
+            time.sleep(7)
+            self.diff_temp_a = float(22) - float(self.aLog[-1])
+            self.diff_temp_b = float(22) - float(self.bLog[-1])
             return
         _thread.start_new_thread(delay_change, ())
         return
 
         #afterwards set the current temp to the desired temp so that the graph is accurate
-        def sync_temp(a, b, real):
-            if self.diff_temp_a == None:
-                self.diff_temp_a = real - a
-                self.diff_temp_b = real - b
-            else:
-                self.diff_temp_a = (self.diff_temp_a + (real - a))/2
-                self.diff_temp_b = (self.diff_temp_b + (real - b))/2
-            return
 
 
     def plotPoints(self):
@@ -274,11 +282,13 @@ class TGinterface:
             self._fig.canvas.draw()
 
     def saveResults(self):
+        #write file as comma separated strings
         file = open("resultsData.txt","w")
         file.write("Time, A, B" + '\n')
         if self.counter > 0:
             for i in range(0, self.counter):
                 file.write(str(self.tLog[i]) + ", " + str(self.aLog[i]) + ", " + str(self.bLog[i]) + '\n')
+                #Add slider.get() output into saveResults() then reset
 
     def run(self):
         self._root.mainloop()
