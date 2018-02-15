@@ -81,7 +81,7 @@ class TGinterface:
         self.button2 = tk.Button(self._root, text="QUIT", command=self.endProgram)
         self._root.bind_all('<Key>', self.key)
         self.button.pack(side="top", pady=5, ipady=2, ipadx=5)
-        self.button1.pack(side="top", pady=5, ipady=2, ipadx=5)
+        #self.button1.pack(side="top", pady=5, ipady=2, ipadx=5)
         self.slider.pack(side="top", pady=5, ipady=2, ipadx=5)
         self.button2.pack(side="bottom", pady=5, ipady=2, ipadx=5)
         self.button3.pack(side="bottom", ipady=2, ipadx=5)
@@ -116,7 +116,7 @@ class TGinterface:
             self.aLog.append(float(a))
             self.bLog.append(float(b))
             self.tLog.append(float(t))
-            self.scaleLog.append(str(slider.get()))
+            self.scaleLog.append(str(self.slider.get()))
             self.temp_a.set("Desired: " + self.des_temp_a + " / Current Temp: " + a)
             self.temp_b.set("Desired: " + self.des_temp_b + " / Current Temp: " + b)
             self.plotPoints()
@@ -152,6 +152,7 @@ class TGinterface:
             self.top_var.set("Running")
             _thread.start_new_thread(self.getSerial, ())
         self.top_var.set("Calibrating")
+        time.sleep(3)
         self.calibrate()
         self.top_var.set("Running")
 
@@ -190,6 +191,7 @@ class TGinterface:
             if DEBUG_MODE:
                 print("Sending output: ", out)
             #record "live" temp for the time it is changing
+
             def changing():
                 self.changing_temp = True
                 time.sleep(4)
@@ -202,10 +204,13 @@ class TGinterface:
     def getSerial(self):
         t = 0
         while self.ser.port != "":
-            read_val = self.ser.readline().decode()
+            try:
+                read_val = self.ser.readline().decode()
+            except:
+                print("Was not able to read from Arduino, make sure it is connected and restart the program.")
+                break
             if DEBUG_MODE:
                 print("Recieved: {} at {}".format(read_val, time.strftime('%a %H:%M:%S')))
-            print(self.calibrated, self.changing_temp)
             if (self.calibrated and not self.changing_temp):
                 a = self.des_temp_a
                 b = self.des_temp_b
@@ -215,6 +220,7 @@ class TGinterface:
             self.aLog.append(float(a)+float(self.diff_temp_a))
             self.bLog.append(float(b)+float(self.diff_temp_b))
             self.tLog.append(float(t))
+            self.scaleLog.append(str(self.slider.get()))
             self.temp_a.set("Desired: " + self.des_temp_a + " / Current Temp: " + a)
             self.temp_b.set("Desired: " + self.des_temp_b + " / Current Temp: " + b)
             self.plotPoints()
@@ -222,7 +228,7 @@ class TGinterface:
             time.sleep(0.5)
 
     def calibrate(self):
-        #set both temp to 19, wait, set to 26, wait, set to 22
+        #set both temp to 20, wait, set to 22
         self.calibrated = True
         def change_temp(temp):
             self.E1.delete(0, 'end')
@@ -236,7 +242,7 @@ class TGinterface:
             #create a for loop instead of this
             change_temp(20)
             time.sleep(3)
-            #print("changing temp and slider read is " + str(self.slider.get()))
+            print("changing temp and slider read is " + str(self.slider.get()))
             change_temp(22)
             time.sleep(7)
             self.diff_temp_a = float(22) - float(self.aLog[-1])
@@ -284,10 +290,10 @@ class TGinterface:
     def saveResults(self):
         #write file as comma separated strings
         file = open("resultsData.txt","w")
-        file.write("Time, A, B" + '\n')
+        file.write("Time, A, B, Pain Rating" + '\n')
         if self.counter > 0:
             for i in range(0, self.counter):
-                file.write(str(self.tLog[i]) + ", " + str(self.aLog[i]) + ", " + str(self.bLog[i]) + '\n')
+                file.write(str(self.tLog[i]) + ", " + str(self.aLog[i]) + ", " + str(self.bLog[i]) + ", " + str(self.scaleLog[i]) + '\n')
                 #Add slider.get() output into saveResults() then reset
 
     def run(self):
